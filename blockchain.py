@@ -3,13 +3,14 @@ import json
 from textwrap import dedent
 from time import time
 from uuid import uuid4
-
+from urllib.parse import urlparse
 from flask import Flask, jsonify, request
 
 class Blockchain(object):
     def __init__(self):
         self.chain = []
         self.current_transactions = []
+        self.nodes = set()
 
         # Genesis
         # Initial block of our block chain
@@ -25,7 +26,7 @@ class Blockchain(object):
         block = {
             'index': len(self.chain) + 1,
             'timestamp': time(),
-            'transaction': self.current_transactions,
+            'transactions': self.current_transactions,
             'proof': proof,
             'previous_hash': previous_hash or self.hash(self.chain[-1])
         }
@@ -60,11 +61,27 @@ class Blockchain(object):
         :param last_proof: <int>
         :return: <int>
         """
+        proof = 0
         # Simple incrementing while, trying to find a successful proof
         while self.valid_proof(last_proof, proof) is False:
             proof += 1
 
         return proof
+
+    def register_node(self, address):
+        """
+        Add a new node to list of nodes
+        :param address: <string> Address of the node i.e. 'http://192.168.1.2:5000'
+        """
+        self.nodes.add(urlparse(address).netloc)
+
+    def valid_chain(self, chain):
+        """
+        Check if block chain is valid
+        :param chain: <list> the block chain
+        :return: <bool> True if valid, False if not
+        """
+        pass
 
     @staticmethod
     def valid_proof(last_proof, proof):
@@ -90,7 +107,7 @@ class Blockchain(object):
         """
         # Need to order dictionary to prevent inconsistent hashes
         block_string = json.dumps(block, sort_keys=True).encode()
-        return hashlib.sha256(bloock_string).hexdigest()
+        return hashlib.sha256(block_string).hexdigest()
 
     @property
     def last_block(self):
@@ -126,7 +143,7 @@ def new_transaction():
         return 'Missing values', 400
 
     # Create new transaction
-    index = blockchain.new_transaction(values['sender'], values['recipients'], values['amount'])
+    index = blockchain.new_transaction(values['sender'], values['recipient'], values['amount'])
 
     response = {'message': f'Transaction will be added to block {index}'}
     return jsonify(response), 201
@@ -156,7 +173,7 @@ def mine():
     )
 
     # Create hash of previous block
-    prev_hash = blockchain.hash(last_block)
+    prev_hash = blockchain.hash(prev_block)
     block = blockchain.new_block(proof, prev_hash)
 
     response = {
